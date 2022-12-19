@@ -11,7 +11,7 @@
                             <div class="my-3">
                                 <label for="type" class="form-label">{{ $t("Monitor Type") }}</label>
                                 <select id="type" v-model="monitor.type" class="form-select">
-                                    <optgroup label="General Monitor Type">
+                                    <optgroup :label="$t('General Monitor Type')">
                                         <option value="http">
                                             HTTP(s)
                                         </option>
@@ -35,13 +35,13 @@
                                         </option>
                                     </optgroup>
 
-                                    <optgroup label="Passive Monitor Type">
+                                    <optgroup :label="$t('Passive Monitor Type')">
                                         <option value="push">
                                             Push
                                         </option>
                                     </optgroup>
 
-                                    <optgroup label="Specific Monitor Type">
+                                    <optgroup :label="$t('Specific Monitor Type')">
                                         <option value="steam">
                                             {{ $t("Steam Game Server") }}
                                         </option>
@@ -271,7 +271,7 @@
                             <!-- Interval -->
                             <div class="my-3">
                                 <label for="interval" class="form-label">{{ $t("Heartbeat Interval") }} ({{ $t("checkEverySecond", [ monitor.interval ]) }})</label>
-                                <input id="interval" v-model="monitor.interval" type="number" class="form-control" required min="20" step="1">
+                                <input id="interval" v-model="monitor.interval" type="number" class="form-control" required :min="minInterval" step="1" :max="maxInterval">
                             </div>
 
                             <div class="my-3">
@@ -287,7 +287,7 @@
                                     {{ $t("Heartbeat Retry Interval") }}
                                     <span>({{ $t("retryCheckEverySecond", [ monitor.retryInterval ]) }})</span>
                                 </label>
-                                <input id="retry-interval" v-model="monitor.retryInterval" type="number" class="form-control" required min="20" step="1">
+                                <input id="retry-interval" v-model="monitor.retryInterval" type="number" class="form-control" required :min="minInterval" step="1">
                             </div>
 
                             <div class="my-3">
@@ -575,7 +575,7 @@ import NotificationDialog from "../components/NotificationDialog.vue";
 import DockerHostDialog from "../components/DockerHostDialog.vue";
 import ProxyDialog from "../components/ProxyDialog.vue";
 import TagsManager from "../components/TagsManager.vue";
-import { genSecret, isDev } from "../util.ts";
+import { genSecret, isDev, MAX_INTERVAL_SECOND, MIN_INTERVAL_SECOND } from "../util.ts";
 
 const toast = useToast();
 
@@ -591,6 +591,8 @@ export default {
 
     data() {
         return {
+            minInterval: MIN_INTERVAL_SECOND,
+            maxInterval: MAX_INTERVAL_SECOND,
             processing: false,
             monitor: {
                 notificationIDList: {},

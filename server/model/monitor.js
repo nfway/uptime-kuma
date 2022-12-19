@@ -2,7 +2,7 @@ const https = require("https");
 const dayjs = require("dayjs");
 const axios = require("axios");
 const { Prometheus } = require("../prometheus");
-const { log, UP, DOWN, PENDING, MAINTENANCE, flipStatus, TimeLogger } = require("../../src/util");
+const { log, UP, DOWN, PENDING, MAINTENANCE, flipStatus, TimeLogger, MAX_INTERVAL_SECOND, MIN_INTERVAL_SECOND } = require("../../src/util");
 const { tcping, ping, dnsResolve, checkCertificate, checkStatusCode, getTotalClientInRoom, setting, mssqlQuery, postgresQuery, mysqlQuery, mqttAsync, setSetting, httpNtlm, radius, grpcQuery } = require("../util-server");
 const { R } = require("redbean-node");
 const { BeanModel } = require("redbean-node/dist/bean-model");
@@ -15,6 +15,7 @@ const { UptimeKumaServer } = require("../uptime-kuma-server");
 const { CacheableDnsHttpAgent } = require("../cacheable-dns-http-agent");
 const { DockerHost } = require("../docker");
 const Maintenance = require("./maintenance");
+const { UptimeCacheList } = require("../uptime-cache-list");
 
 /**
  * status:
@@ -282,7 +283,6 @@ class Monitor extends BeanModel {
                             ...(this.headers ? JSON.parse(this.headers) : {}),
                             ...(basicAuthHeader),
                         },
-                        decompress: true,
                         maxRedirects: this.maxredirects,
                         validateStatus: (status) => {
                             return checkStatusCode(status, this.getAcceptedStatuscodes());
@@ -714,6 +714,7 @@ class Monitor extends BeanModel {
             }
 
             log.debug("monitor", `[${this.name}] Send to socket`);
+            UptimeCacheList.clearCache(this.id);
             io.to(this.user_id).emit("heartbeat", bean.toJSON());
             Monitor.sendStats(io, this.id, this.user_id);
 
@@ -898,7 +899,15 @@ class Monitor extends BeanModel {
      * @param {number} duration Hours
      * @param {number} monitorID ID of monitor to calculate
      */
-    static async calcUptime(duration, monitorID) {
+    static async calcUptime(duration, monitorID, forceNoCache = false) {
+
+        if (!forceNoCache) {
+            let cachedUptime = UptimeCacheList.getUptime(monitorID, duration);
+            if (cachedUptime != null) {
+                return cachedUptime;
+            }
+        }
+
         const timeLogger = new TimeLogger();
 
         const startTime = R.isoDateTime(dayjs.utc().subtract(duration, "hour"));
@@ -956,6 +965,9 @@ class Monitor extends BeanModel {
                 uptime = 1;
             }
         }
+
+        // Cache
+        UptimeCacheList.addUptime(monitorID, duration, uptime);
 
         return uptime;
     }
@@ -1188,6 +1200,15 @@ class Monitor extends BeanModel {
             WHERE ${activeCondition}
             LIMIT 1`, [ monitorID ]);
         return maintenance.count !== 0;
+    }
+
+    validate() {
+        if (this.interval > MAX_INTERVAL_SECOND) {
+            throw new Error(`Interval cannot be more than ${MAX_INTERVAL_SECOND} seconds`);
+        }
+        if (this.interval < MIN_INTERVAL_SECOND) {
+            throw new Error(`Interval cannot be less than ${MIN_INTERVAL_SECOND} seconds`);
+        }
     }
 }
 
