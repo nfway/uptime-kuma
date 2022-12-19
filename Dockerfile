@@ -1,1 +1,0 @@
-FROM louislam/uptime-kuma
